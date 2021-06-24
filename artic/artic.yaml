@@ -1,0 +1,218 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: artic-pipeline
+spec:
+  serviceAccountName: default
+  entrypoint: pipeline
+  # volumes:
+  # - name: lab-gcp-key
+  #   secret:
+  #     secretName: lab-gcp-key
+  arguments:
+    parameters:
+    - name: fast5-path # Folder inside the bucket to use
+      #value: 'gs://covid-bronx/SARS-2_Bx036-045_pos/SARS-2_Bx036-045_pos/20200506_1754_MN33931_FAN49865_b9eb023c'
+      #value: 'gs://covid-bronx/SARS-2_Bx001-010/SARS-2_Bx001-010/20200513_1745_MN33931_FAN49886_94626588/fast5'
+      #value: 'gs://covid-bronx/SARS-2-Bx051-060/SARS-2-Bx051-060/20200521_1715_MN33931_FAN50732_36a676a3/fast5'
+      #value: 'gs://covid-bronx/SARS-2_Bx036-045_Run4/SARS-2_Bx036-045_Run4/20200604_1555_MN33931_FAN54363_2f319835/fast5'
+      #value: 'gs://covid-bronx/run4b/fast5'
+      #value: 'gs://covid-bronx/run5/20200611_1834_MN33931__506766b1/fast5'
+      #value: 'gs://covid-bronx/run6/SARS-2_AECOM46-51_62-75_run6/20200623_2300_MN33931_FAN51083_4b6dc355/fast5'
+      #value: 'gs://covid-bronx/run7/SARS-2_AECOM-081-102_run7/20200626_1956_MN33931_FAN50814_dd816694/fast5'
+      #value: 'gs://covid-bronx/run8/20200702_1925_MN33931_FAN51071_2d4f788d/fast5'
+      #value: 'gs://covid-bronx/MSample1/S1/20200709_1911_MN33931_FAO16669_5176212e/fast5'
+      value: 'gs://covid-bronx/run9b/fast5'
+    - name: sequencing-summary
+      #value: "gs://covid-bronx/SARS-2_Bx001-010/SARS-2_Bx001-010/20200513_1745_MN33931_FAN49886_94626588/sequencing_summary_FAN49886_5d8c7c53.txt"
+      #value: 'gs://covid-bronx/run4b/multiplexed/sequencing_summary.txt'
+      value: 'gs://covid-bronx/run9b/multiplexed/sequencing_summary.txt'
+    - name: base-path
+      value: 'gs://covid-bronx'
+    - name: basecalled-path
+      value: 'basecalled'
+    - name: barcoded-path
+      value: 'barcoded'
+    - name: output-path
+      value: 'output'
+    - name: multiplexed-path
+      value: 'multiplexed'
+    - name: fast
+      value: False
+    - name: run-name
+      value: "run9b"
+    - name: min-score-barcoding
+      value: 60
+    - name: guppyplex-min-length
+      value: 400
+    - name: guppyplex-max-length
+      value: 700
+
+  templates:
+  - name: pipeline
+    dag:
+      tasks:
+      - name: basecall
+        template: guppy-basecaller
+      - name: barcode
+        template: guppy-barcoder
+        dependencies: [basecall]
+      - name: multiplex
+        template: artic-multiplexer
+        dependencies: [barcode]
+      - name: minion
+        template: minion-pipeline
+        dependencies: [multiplex]
+        arguments:
+          parameters:
+          - name: barcode
+            value: "{{item}}"
+        withItems:
+        - 'barcode01'
+        - 'barcode02'
+        - 'barcode03'
+        - 'barcode04'
+        - 'barcode05'
+        - 'barcode06'
+        - 'barcode07'
+        - 'barcode08'
+        - 'barcode09'
+        - 'barcode10'
+        - 'barcode11'
+        - 'barcode12'
+        - 'barcode13'
+        - 'barcode14'
+        - 'barcode15'
+        - 'barcode16'
+        - 'barcode17'
+        - 'barcode18'
+        - 'barcode19'
+        - 'barcode20'
+        - 'barcode21'
+        - 'barcode22'
+        - 'barcode23'
+        - 'barcode24'
+  - name: minion
+    dag:
+      tasks:
+      - name: minion
+        template: minion-pipeline
+        arguments:
+          parameters:
+          - name: barcode
+            value: "{{item}}"
+        withItems:
+        - 'barcode01'
+        - 'barcode02'
+        - 'barcode03'
+        - 'barcode04'
+        - 'barcode05'
+        - 'barcode06'
+        - 'barcode07'
+        - 'barcode08'
+        - 'barcode09'
+        - 'barcode10'
+        - 'barcode11'
+        - 'barcode12'
+        - 'barcode13'
+        - 'barcode14'
+        - 'barcode15'
+        - 'barcode16'
+        - 'barcode17'
+        - 'barcode18'
+        - 'barcode19'
+        - 'barcode20'
+        - 'barcode21'
+        - 'barcode22'
+        - 'barcode23'
+        - 'barcode24'
+
+
+  - name: guppy-basecaller
+    retryStrategy:
+      limit: 5
+    container:
+      image: gcr.io/kellylab/artic-profiling
+      command: ["python3", "/artic/guppy_basecaller.py"]
+      args: ["{{workflow.parameters.fast5-path}}",
+      "{{workflow.parameters.base-path}}/{{workflow.parameters.run-name}}/{{workflow.parameters.basecalled-path}}",
+      "{{workflow.parameters.run-name}}", "--fast",
+      "{{workflow.parameters.fast}}"] 
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: 1.5
+          ephemeral-storage: "700Gi"
+        limits:
+          nvidia.com/gpu: 1
+          memory: "4Gi"
+          cpu: 1.5
+          ephemeral-storage: "700Gi"
+    tolerations:
+    - effect: NoSchedule
+      key: nvidia.com/gpu
+      operator: "Exists"
+  - name: guppy-barcoder
+    container:
+      image: gcr.io/kellylab/artic-profiling
+      command: ["python3", "/artic/guppy_barcoder.py"]
+      args: ["{{workflow.parameters.base-path}}/{{workflow.parameters.run-name}}/{{workflow.parameters.basecalled-path}}",
+      "{{workflow.parameters.base-path}}/{{workflow.parameters.run-name}}/{{workflow.parameters.barcoded-path}}",
+      "{{workflow.parameters.run-name}}",
+      "{{workflow.parameters.min-score-barcoding}}"]
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: 1.5
+          ephemeral-storage: "700Gi"
+        limits:
+          nvidia.com/gpu: 1
+          memory: "4Gi"
+          cpu: 1.5
+          ephemeral-storage: "700Gi"
+
+    tolerations:
+    - effect: NoSchedule
+      key: nvidia.com/gpu
+      operator: "Exists"
+  - name: artic-multiplexer
+    retryStrategy:
+      limit: 5
+    container:
+      image: gcr.io/kellylab/artic-profiling
+      command: ["python3", "/artic/artic_multiplexer.py"]
+      args: ["{{workflow.parameters.base-path}}/{{workflow.parameters.run-name}}/{{workflow.parameters.barcoded-path}}",
+      "{{workflow.parameters.base-path}}/{{workflow.parameters.run-name}}/{{workflow.parameters.multiplexed-path}}",
+      "{{workflow.parameters.run-name}}",
+      "--fast", "{{workflow.parameters.fast}}",
+      "--min-length", "{{workflow.parameters.guppyplex-min-length}}",
+      "--max-length", "{{workflow.parameters.guppyplex-max-length}}"]
+      resources:
+        requests:
+          cpu: 1      
+  - name: minion-pipeline
+    inputs:
+      parameters:
+      - name: barcode
+    retryStrategy:
+      limit: 10
+      backoff:
+          duration: "3"       # Must be a string. Default unit is seconds. Could also be a Duration, e.g.: "2m", "6h", "1d"
+          factor: 2
+          maxDuration: "1d" # Must be a string. Default unit is seconds. Could also be a Duration, e.g.: "2m", "6h", "1d"
+    container:
+      image: gcr.io/kellylab/artic-profiling      
+      command: ["python3", "/artic/minion_pipeline.py"]
+      args: ["{{workflow.parameters.base-path}}/{{workflow.parameters.run-name}}/{{workflow.parameters.multiplexed-path}}",
+      "{{workflow.parameters.base-path}}/{{workflow.parameters.run-name}}/{{workflow.parameters.output-path}}",
+      "{{workflow.parameters.fast5-path}}", "{{workflow.parameters.run-name}}",
+      "--barcode", "{{inputs.parameters.barcode}}"] 
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: 1.5
+          ephemeral-storage: "700Gi"
+        limits:
+          memory: "4Gi"
+          cpu: 1.5
+          ephemeral-storage: "700Gi"
